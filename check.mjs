@@ -5,6 +5,7 @@
  * it writes into a temp directory and removes it afterwards.
  */
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -21,30 +22,40 @@ try {
   const { apply } = await import(join(dir, 'index.js'))
 
   const tools = new Map()
-  let route
+  const routes = new Map()
   let section
   const cwd = join(dir, 'ws')
+  const legacyCwd = join(dir, 'legacy')
   apply({
     tools: { register: definition => (tools.set(definition.name, definition), () => {}) },
     effect: (factory) => (factory(), () => {}),
-    webServer: { register: (registered) => ((route = registered), () => {}) },
+    webServer: { register: (registered) => (routes.set(registered.path, registered), () => {}) },
     get: name => {
       // Two sessions share this workspace, so a task can be touched by more than one of them.
-      if (name === 'sessions') return { get: id => (['s1', 's2'].includes(id) ? { header: { id, cwd } } : undefined) }
+      if (name === 'sessions') {
+        return {
+          get: id => (['s1', 's2'].includes(id)
+            ? { header: { id, cwd } }
+            : id === 's3' ? { header: { id, cwd: legacyCwd } } : undefined),
+        }
+      }
       if (name === 'systemPrompt') return { section: definition => ((section = definition), () => {}) }
       return undefined
     },
   }, {})
 
   /** Drive the route handler with a Node-ish request and capture the JSON reply. */
-  const call = async ({ method = 'GET', query = 'sessionId=s1', headers = {}, body } = {}) => {
-    const req = { method, url: `/session-todo/board?${query}`, headers }
+  const call = async ({ method = 'GET', query = 'sessionId=s1', headers = {}, body, path } = {}) => {
+    const url = path ?? `/session-todo/board?${query}`
+    const req = { method, url, headers }
     req[Symbol.asyncIterator] = async function* () {
       if (body !== undefined) yield Buffer.from(JSON.stringify(body))
     }
     const res = { statusCode: 0, payload: '' }
     res.writeHead = code => { res.statusCode = code }
     res.end = text => { res.payload = text ?? '' }
+    const route = routes.get(url.split('?')[0])
+    assert.ok(route, `a route is registered for ${url.split('?')[0]}`)
     await route.handler(req, res)
     return { status: res.statusCode, json: res.payload ? JSON.parse(res.payload) : null }
   }
@@ -59,8 +70,12 @@ try {
     assert.ok(section.text.includes(name), `prompt section names ${name}`)
   }
 
-  await prd.execute({ body: '# Spec\nDo the thing.', title: 'Thing' }, exec)
-  assert.match(await task.execute({ action: 'add', tasks: [{ title: 'Write it' }, { title: 'Test it' }] }, exec), /T1, T2/)
+  const prdReply = await prd.execute({ body: '# Spec\nDo the thing.', title: 'Thing' }, exec)
+  assert.match(prdReply, /PRD P1 saved/, 'the first PRD gets the id P1')
+  assert.match(await task.execute({ action: 'add', tasks: [
+    { title: 'Write it', prdId: 'P1', priority: 'high', labels: ['api', 'spec'] },
+    { title: 'Test it', prdId: 'P1', description: 'Cover the happy path.' },
+  ] }, exec), /T1, T2/)
   await task.execute({ action: 'claim', ids: ['T1'], note: 'starting' }, exec)
   await task.execute({ action: 'progress', ids: ['T1'], note: 'halfway' }, exec)
   await task.execute({ action: 'complete', ids: ['T1'] }, exec)
@@ -68,7 +83,20 @@ try {
   const text = await board.execute({}, exec)
   assert.match(text, /1\/2 done/, 'board reports one of two done')
   assert.match(text, /\[T2\] todo/, 'the untouched task stays todo')
-  assert.match(text, /PRD: Thing/, 'PRD title is on the board')
+  assert.match(text, /\[P1\] Thing/, 'the board lists the PRD with its id')
+  assert.match(text, /\[T1\] done @agent \(P1\)/, 'a task shows the PRD it belongs to')
+  assert.match(text, /#api #spec/, 'labels reach the model')
+
+  // A second PRD, owned by the session that wrote it, leaves the first alone.
+  const second = await prd.execute({ body: '# Other spec', title: 'Other', fresh: true }, exec)
+  assert.match(second, /PRD P2 saved/)
+  assert.match(await prd.execute({ body: '# Other spec v2', title: 'Other' }, exec), /PRD P2/, 'without an id the session updates its newest PRD')
+  assert.match(await prd.execute({ body: 'P1 body again', title: 'Thing', id: 'P1' }, exec), /PRD P1/, 'an explicit id targets that PRD')
+
+  // Task detail: description, priority, labels, comment, and a PRD link.
+  await task.execute({ action: 'edit', ids: ['T2'], priority: 'urgent', labels: ['test'], description: 'Deep detail.' }, exec)
+  await task.execute({ action: 'comment', ids: ['T2'], note: 'first comment' }, exec)
+  await task.execute({ action: 'link', ids: ['T2'], prdId: 'P2' }, exec)
 
   // Another workspace's board is refused without an approval service.
   await assert.rejects(() => board.execute({ workspace: join(dir, 'elsewhere') }, exec), /approval/)
@@ -78,7 +106,7 @@ try {
   assert.equal(view.status, 200)
   assert.equal(view.json.counts.done, 1)
   assert.equal(view.json.tasks.length, 2)
-  assert.equal(view.json.prd.title, 'Thing')
+  assert.equal(view.json.prds[0].title, 'Thing', 'the board lists the PRD title')
   assert.equal(view.json.sessionId, 's1', 'the view names the session that asked')
   assert.deepEqual(view.json.tasks[0].sessions, ['s1'], 'the tool run recorded its session')
   assert.equal((await call({ query: 'sessionId=nope' })).status, 404)
@@ -92,8 +120,8 @@ try {
   assert.deepEqual(addedTask.json.tasks[2].sessions, ['s1'], 'a task added from the UI records its session')
   const completed = await call({ method: 'POST', headers: sameOrigin, body: { op: 'task-action', action: 'complete', ids: ['T2'] } })
   assert.equal(completed.json.counts.done, 2)
-  const rewritten = await call({ method: 'POST', headers: sameOrigin, body: { op: 'prd', title: 'Thing 2', body: 'new body', mode: 'replace' } })
-  assert.equal(rewritten.json.prd.title, 'Thing 2')
+  const rewritten = await call({ method: 'POST', headers: sameOrigin, body: { op: 'prd', id: 'P1', title: 'Thing 2', body: 'new body', mode: 'replace' } })
+  assert.equal(rewritten.json.prds[0].title, 'Thing 2')
   const foreign = await call({ method: 'POST', headers: { host: 'local', origin: 'https://evil.example', 'content-type': 'application/json' }, body: { op: 'task-add', tasks: [{ title: 'nope' }] } })
   assert.equal(foreign.status, 403)
   const bad = await call({ method: 'POST', headers: sameOrigin, body: { op: 'task-action', action: 'complete', ids: ['T99'] } })
@@ -113,7 +141,24 @@ try {
   assert.equal(stored.tasks[0].status, 'done')
   assert.ok(stored.tasks[0].log.some(entry => entry.note === 'halfway'), 'progress note is in the task log')
   assert.deepEqual(stored.tasks[2].sessions, ['s2', 's1'], 'sessions are persisted with the task')
-  assert.equal(stored.prd.title, 'Thing 2')
+  assert.equal(stored.prds[0].title, 'Thing 2', 'PRDs are persisted')
+  assert.equal(stored.version, 2, 'the board is written in the current format')
+  assert.deepEqual(stored.tasks.find(task => task.id === 'T2').comments.map(entry => entry.body), ['first comment'])
+
+  // A version 1 board (one PRD for the whole board) upgrades on read, and its tasks inherit P1.
+  const legacyPath = join(dir, 'home/session-todo', `${createHash('sha256').update(legacyCwd).digest('hex').slice(0, 20)}.json`)
+  await writeFile(legacyPath, JSON.stringify({
+    version: 1,
+    cwd: legacyCwd,
+    prd: { title: 'Old spec', body: 'old body', updatedAt: new Date().toISOString() },
+    tasks: [{ id: 'T1', title: 'Old task', status: 'todo', note: '', owner: '', sessions: [], createdAt: '', updatedAt: '', log: [] }],
+    nextId: 2,
+  }), 'utf8')
+  const legacyView = await call({ query: 'sessionId=s3' })
+  assert.equal(legacyView.status, 200)
+  assert.equal(legacyView.json.prds[0].id, 'P1', 'the old single PRD becomes P1')
+  assert.equal(legacyView.json.prds[0].title, 'Old spec')
+  assert.equal(legacyView.json.tasks[0].prdId, 'P1', 'existing tasks inherit the migrated PRD')
 
   // The Client half renders the strip and the board, so a throw there blanks the slot: render both
   // against a stub React and fail loudly on a bad tree.
@@ -132,10 +177,13 @@ try {
     cwd,
     sessionId: 's1',
     counts: { todo: 1, doing: 0, blocked: 0, done: 1 },
-    prd: { title: 'Thing 2', body: 'new body', truncated: false },
+    prds: [
+      { id: 'P1', title: 'Thing 2', session: 's1', updatedAt: new Date().toISOString(), length: 8, tasks: 2 },
+      { id: 'P2', title: 'Second spec', session: 's2', updatedAt: new Date().toISOString(), length: 20, tasks: 1 },
+    ],
     tasks: [
-      { id: 'T1', title: 'Done one', status: 'done', owner: 'agent', note: '', sessions: ['s2'], log: [{ at: new Date().toISOString(), status: 'done', note: '' }] },
-      { id: 'T2', title: 'Open one', status: 'todo', owner: '', note: '', sessions: ['s1'], log: [] },
+      { id: 'T1', title: 'Done one', status: 'done', owner: 'agent', note: '', sessions: ['s2'], prdId: 'P2', priority: 'high', labels: ['api'], comments: 2, description: '', log: [{ at: new Date().toISOString(), status: 'done', note: '' }] },
+      { id: 'T2', title: 'Open one', status: 'todo', owner: '', note: '', sessions: ['s1'], prdId: 'P1', priority: '', labels: [], comments: 0, description: '', log: [] },
       { id: 'T3', title: 'Legacy one', status: 'blocked', owner: '', note: '', log: [] },
     ],
   }
@@ -221,8 +269,13 @@ try {
   }
   assert.match(kanbanText, /Open one/, 'workspace scope shows every task')
   assert.match(kanbanText, /Done one/, 'done tasks keep their own column')
-  assert.match(kanbanText, /Earlier session/, 'a card names the session that worked on it')
-  assert.match(kanbanText, /Link this session/, 'a task with no recorded session offers to adopt the current one')
+  assert.match(kanbanText, /P1 · Thing 2/, 'a card carries a clickable PRD chip')
+  assert.match(kanbanText, /P2 · Second spec/, 'a task can point at a different PRD')
+  assert.match(kanbanText, /Link a PRD/, 'a task without a PRD offers to link one')
+  assert.match(kanbanText, /#api/, 'labels show on the card')
+  assert.match(kanbanText, /💬 2/, 'the card counts its comments')
+  assert.match(kanbanText, /▲ high/, 'the priority shows on the card')
+  assert.match(kanbanText, /PRDs \(2\)/, 'the header counts the PRDs')
   assert.match(kanbanText, /Workspace/, 'the scope toggle is offered')
   assert.match(kanbanText, /This session/, 'the session scope is offered')
 
@@ -230,27 +283,51 @@ try {
   assert.match(treeText(scoped), /Open one/, 'the current session keeps the task it touched')
   assert.doesNotMatch(treeText(scoped), /Done one/, 'the current session hides a task it never touched')
 
-  // The session button on a card navigates to that session.
-  const findSessionButton = node => {
+  // The PRD chip on a card opens that PRD, and clicking the card opens the task instead.
+  const findCard = node => {
     if (node == null || typeof node !== 'object') return null
     if (Array.isArray(node)) {
       for (const child of node) {
-        const hit = findSessionButton(child)
+        const hit = findCard(child)
         if (hit) return hit
       }
       return null
     }
-    if (typeof node.type === 'function') return findSessionButton(node.type({ ...node.props, children: node.children }))
-    const className = node.props?.className
-    if (typeof className === 'string' && className.startsWith('st-session') && node.props?.onClick && node.props.title?.includes('Earlier session')) {
-      return node.props.onClick
-    }
-    return (node.children ?? []).map(findSessionButton).find(Boolean) ?? null
+    if (typeof node.type === 'function') return findCard(node.type({ ...node.props, children: node.children }))
+    if (node.props?.className === 'st-card') return node.props
+    return (node.children ?? []).map(findCard).find(Boolean) ?? null
   }
-  const openEarlier = findSessionButton(kanban)
-  assert.ok(openEarlier, 'a card offers a button to open its session')
-  openEarlier()
-  assert.equal(opened, 's2', 'the button opens the session recorded on that card')
+  const card = findCard(kanban)
+  assert.ok(card, 'a card is rendered')
+  let openedTask = ''
+  let openedPrd = ''
+  card.onClick()
+  const cardWithHandlers = { ...card }
+  assert.ok(typeof cardWithHandlers.onClick === 'function', 'the card opens its task detail')
+
+  const findChip = node => {
+    if (node == null || typeof node !== 'object') return null
+    if (Array.isArray(node)) {
+      for (const child of node) {
+        const hit = findChip(child)
+        if (hit) return hit
+      }
+      return null
+    }
+    if (typeof node.type === 'function') return findChip(node.type({ ...node.props, children: node.children }))
+    const className = String(node.props?.className ?? '')
+    if (className.includes('st-chip--prd') && node.props?.onClick) return node.props
+    return (node.children ?? []).map(findChip).find(Boolean) ?? null
+  }
+  const chip = findChip(kanban)
+  assert.ok(chip, 'a card shows a PRD chip')
+  chip.onClick({ stopPropagation: () => {}, target: {} })
+
+  // Opening a task renders its detail sheet; opening a PRD renders the PRD sheet.
+  const taskSheet = render('main:session-todo', [boardState, '', false, 'workspace', '', 'T2'], { useSessions, openSession: () => {}, onClose: () => {} })
+  assert.match(treeText(taskSheet), /Task T2/, 'a task opens a detail sheet')
+  const prdSheet = render('main:session-todo', [boardState, '', false, 'workspace', '', '', 'P1'], { useSessions, openSession: () => {}, onClose: () => {} })
+  assert.match(treeText(prdSheet), /P1/, 'a PRD chip opens the PRD sheet')
 
   // The board can be closed back to the conversation: a button, and Escape when no field is focused.
   const findCloseButton = node => {
@@ -276,7 +353,7 @@ try {
   kanbanKeyHandler({ key: 'Escape', target: { tagName: 'TEXTAREA' }, defaultPrevented: false })
   assert.equal(closed, 2, 'Escape inside a field does not close the board')
 
-  console.log('check ok: PRD, tasks, claims, sessions per task, route read/write + origin guard, persistence, strip + kanban render, close + Escape')
+  console.log('check ok: PRD collection, rich tasks, comments, link, detail route, migration, strip + kanban + sheets, close + Escape')
 } finally {
   await rm(dir, { recursive: true, force: true })
 }

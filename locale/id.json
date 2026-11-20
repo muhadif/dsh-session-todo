@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "Session todo",
-    "description": "Satu PRD dan papan task kanban per workspace: agent menulis PRD, mengambil task dan mencatat progres, setiap kartu menaut ke session yang mengerjakannya, dan papan bisa disaring ke session ini atau seluruh workspace.",
+    "description": "PRD dan papan task kanban per workspace: tiap PRD milik session yang menulisnya dan menaungi banyak task, kartu menaut ke PRD yang dirender sebagai Markdown, dan tiap task punya panel detail ala Jira dengan deskripsi, prioritas, label, dan komentar.",
     "detail": "docs/DETAIL.md"
   }
 }

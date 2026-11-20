@@ -1,47 +1,60 @@
 # Session todo
 
-One PRD and task board per workspace, shared by every session working in that directory: a kanban board in the main panel, and a strip under the composer that shows the same board while the agent works.
+One board of PRDs and tasks per workspace, shared by every session working in that directory: a kanban board in the main panel, and a strip under the composer that shows this session's work while the agent runs.
 
-## The board
+## PRDs
 
-Four columns — Todo, Doing, Blocked, Done — with a card per task. The header carries the counts, a progress bar, the scope toggle, the PRD editor, the add field, and a close button.
+A PRD is an entity, not a field on the board. Each one has an id (`P1`, `P2`, …), the session that wrote it, a title and a Markdown body, and it backs as many tasks as you like — a task carries `prdId`.
 
-The close button returns the main area to the conversation, the same call the shell's own panels make (`layout.selectPanel(null)`); Escape does the same unless a text field has focus. Closing the board does not stop the agent or change any task — the composer strip keeps showing the counts, and the sidebar icon reopens the board. A card shows its title, its latest progress note and its owner, offers the actions for its column (Start, Done, Block, Reopen, Delete), and toggles the per-task progress log.
+The board lists every PRD behind the `PRDs (n)` button. Opening one renders its body as Markdown through the shell's own renderer (`@deepseek-ai/dsh-client-ui-primitives`), with an edit mode that saves back through the board route. A card's PRD chip opens the same sheet, so a task is one click from its spec.
+
+`session_todo_prd` returns the id it wrote, which is what the model passes as `prdId` when adding tasks. Without an id it updates the PRD that session wrote last, creating one when there is none; `fresh: true` starts another.
+
+## Tasks
+
+A task carries a title, status, owner, priority (`low`/`medium`/`high`/`urgent`), labels, a Markdown description, comments, the sessions that touched it, and the PRD it belongs to.
+
+The card shows the title, the PRD chip, priority, labels, comment count and the last session. Clicking the card opens the detail panel: editable title, status buttons, owner, priority, labels, PRD dropdown, the session list (each entry opens that conversation), the description rendered as Markdown, the comment thread, and the full history of status changes and progress notes.
 
 ## Sessions on a task
 
-Each task records up to five session ids, most recent first, written by both the agent tools and the board route. `sessions[0]` is the session the card links to: clicking that button calls the workspace service's `openSession`, so the main area switches to the conversation that last worked on the task. The same list answers the scope toggle — **Workspace** shows every task on the board, **This session** only those whose `sessions` include the session currently in the main view.
+Each task records up to five session ids, most recent first, written by both the agent tools and the board route. `sessions[0]` is the session a card links to; membership answers the scope toggle — **Workspace** shows every task on the board, **This session** only those whose `sessions` include the session currently in the main view.
 
 The panel is root-scoped and has no session prop, so it reads the current session the way `ui-session` does: the catalog row whose `retainedBy.mainView` count is positive. Titles come from the same catalog, falling back to the id prefix.
 
-Boards written before 1.1.0 have no `sessions` field at all, so their cards show **Link this session** instead of a session name: one click records the session currently open on that task (`progress` with no note, which changes nothing else). Any later action on the task records the session too, so the field fills itself in as the board is used.
+Boards written before 1.1.0 have no `sessions` field at all, so their cards show **Link this session** instead of a session name: one click records the session currently open on that task. Any later action on the task records the session too.
 
 ## Tools the agent gets
 
 | Tool | What it does |
 | --- | --- |
-| `session_todo_board` | Reads the PRD and every task with status, owner and latest note. A `workspace` path reads another workspace's board after the user approves. |
-| `session_todo_prd` | Saves the PRD (`replace`) or appends a section (`append`). |
-| `session_todo_task` | `add`, `claim`, `progress`, `complete`, `block`, `reopen`, `remove` on task ids such as `T3`. |
+| `session_todo_board` | Reads every PRD with its id and owner, and every task with status, owner, linked PRD, priority, labels and latest note. A `workspace` path reads another workspace's board after the user approves. |
+| `session_todo_prd` | Writes a PRD and returns its id (`id` to target one, `fresh` to start another, `mode: append` to extend). |
+| `session_todo_task` | `add`, `claim`, `progress`, `comment`, `edit`, `link`, `complete`, `block`, `reopen`, `remove` on task ids such as `T3`. |
 
-`add` returns the new ids, `claim` marks the task `doing` and records the owner (`agent` unless set), `progress` appends a note to the task log and can change status later, and `complete` closes it.
-
-The composer strip is scoped to the conversation it is docked in: its counts, progress bar and collapsed list cover only the tasks whose `sessions` include that session, and a footer line names how many tasks the rest of the workspace holds, linking to the board. A session that has touched nothing shows its own empty state rather than the workspace's. The list is capped at 28vh and scrolls inside the strip, so a long board never pushes the composer or the collapse control off screen.
+The composer strip is scoped to the conversation it is docked in: its counts, progress bar and collapsed list cover only the tasks whose `sessions` include that session, and a footer line names how many tasks the rest of the workspace holds, linking to the board.
 
 ## How a session finds it
 
-The tools are registered for every agent in the profile, and the plugin adds a short `Session todo board` section to the system prompt so each step knows when to use them: record the PRD when requirements arrive, claim a task before working, log progress, complete it when done. The board is keyed by the session's working directory, so every session and subagent in the same directory shares one board without any setup.
+The tools are registered for every agent in the profile, and the plugin adds a short `Session todo board` section to the system prompt so each step knows when to use them: record the PRD when requirements arrive, pass its id as `prdId` when adding tasks, claim a task before working, log progress, complete it when done. The board is keyed by the session's working directory, so every session and subagent in the same directory shares one board without any setup.
 
 ## Where the data lives
 
 Boards are JSON files in `$DSH_HOME/session-todo/` (by default `~/.dsh/session-todo/`), one per workspace directory and keyed by a hash of its absolute path. They survive restarts, session forks and compaction, and are not part of the session log — a plugin cannot append its own event type. Removing a file resets that workspace's board.
 
+The current format is `version: 2`. A version 1 board (a single `prd` for the whole board) is upgraded when it is read: the PRD becomes `P1` and every existing task links to it.
+
+## Transport
+
+`GET/POST /session-todo/board` carries the whole board but only previews: PRD metadata (title, owner, length, task count) and the first 200 characters of a task description. `GET /session-todo/detail?kind=prd|task&id=…` serves one full record on demand, which is what the PRD sheet and the task panel fetch. Both routes resolve the workspace from a live session id and never accept a path.
+
 ## Limits
 
-- 200 tasks per board, a 40,000-character PRD, 40 log entries and 5 session ids per task, and a 60-task prefix in tool output (the count of hidden tasks is disclosed).
+- 50 PRDs and 200 tasks per board, a 40,000-character PRD body, an 8,000-character task description, 40 log entries, 50 comments and 5 session ids per task, 8 labels per task, and a 60-task prefix in tool output (the count of hidden tasks is disclosed).
 - Writes are serialized inside the Harness process. Editing the JSON by hand while a session is running can be overwritten on the next write.
 - Sessions with no working directory cannot use the board.
-- The strip and the board poll the board route every 4 seconds. Both can also write: add a task, move one between columns, log a progress note and edit the PRD. Those writes carry the same operations as the tools, under the owner name `you`.
+- The strip and the board poll the board route every 4 seconds. Both can also write: add a task, move one between columns, edit its fields, comment, link a PRD, and write or edit a PRD. Those writes carry the same operations as the tools, under the owner name `you`.
 - Only a same-origin browser request may write (the route compares the `Origin` header with its own `Host`, and sends no CORS headers), so another website open in the same browser cannot rewrite a board. A request without an `Origin` header (curl, a local script) is treated as same-origin; use the tools instead.
-- The board route answers without the page's authentication token, but only for the workspace of a live session id it can resolve — it never accepts a path. It is meant for a loopback-bound Harness; a Harness exposed to a network should not enable this plugin.
-- The card's session button navigates to a session id it recorded; a session that has since been archived or removed leaves the board where it is.
+- The board routes answer without the page's authentication token, but only for the workspace of a live session id they can resolve. They are meant for a loopback-bound Harness; a Harness exposed to a network should not enable this plugin.
+- A card's session link navigates to a session id it recorded; a session that has since been archived or removed leaves the board where it is.
+- Markdown renders through the shell's shared renderer. On a host that does not expose it, the PRD and description fall back to preformatted text.

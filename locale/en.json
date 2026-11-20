@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "Session todo",
-    "description": "One PRD and kanban task board per workspace: the agent writes the PRD, claims tasks and records progress, every card links to the session that worked on it, and the board narrows to this session or the whole workspace.",
+    "description": "PRDs and a kanban task board per workspace: each PRD belongs to the session that wrote it and backs many tasks, cards link to the PRD rendered as Markdown, and a task opens a Jira-like detail panel with description, priority, labels and comments.",
     "detail": "docs/DETAIL.md"
   }
 }
