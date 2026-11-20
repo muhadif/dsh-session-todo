@@ -11,7 +11,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 
 const STATUSES = ['todo', 'doing', 'blocked', 'done']
 const ACTIONS = ['add', 'claim', 'progress', 'complete', 'block', 'reopen', 'remove']
-const LIMITS = { prdTitle: 200, prdBody: 40_000, taskTitle: 240, note: 1_500, tasks: 200, log: 40 }
+const LIMITS = { prdTitle: 200, prdBody: 40_000, taskTitle: 240, note: 1_500, tasks: 200, log: 40, sessions: 5 }
 const SHOWN = 60
 const ROUTE_PRD = 4_000
 
@@ -68,8 +68,20 @@ function render(board, headline) {
   return lines.join('\n')
 }
 
+/**
+ * Remember which session touched a task, most recent first. The first entry is the session a card
+ * links to; membership answers "did this session work on it", which the session-scope filter needs.
+ */
+function touchSession(task, sessionId) {
+  const id = clip(sessionId, 64)
+  if (!id) return
+  const list = (task.sessions ?? []).filter(candidate => candidate !== id)
+  list.unshift(id)
+  task.sessions = list.slice(0, LIMITS.sessions)
+}
+
 /** Append tasks; returns their ids. The single implementation both callers share. */
-function addTasks(board, wanted, owner = '') {
+function addTasks(board, wanted, owner = '', sessionId = '') {
   const items = Array.isArray(wanted) ? wanted : []
   if (!items.length) throw new Error('add needs at least one task')
   const added = []
@@ -84,10 +96,12 @@ function addTasks(board, wanted, owner = '') {
       status: 'todo',
       note: clip(item?.note, LIMITS.note),
       owner: clip(owner, 40),
+      sessions: [],
       createdAt: at,
       updatedAt: at,
       log: [{ at, status: 'todo', note: '' }],
     }
+    touchSession(task, sessionId)
     board.nextId += 1
     board.tasks.push(task)
     added.push(task.id)
@@ -96,7 +110,7 @@ function addTasks(board, wanted, owner = '') {
 }
 
 /** Move tasks between statuses and record progress; returns one line per touched task. */
-function updateTasks(board, ids, action, note = '', owner = 'agent') {
+function updateTasks(board, ids, action, note = '', owner = 'agent', sessionId = '') {
   const wanted = (Array.isArray(ids) ? ids : []).map(id => clip(id, 24)).filter(Boolean)
   if (!wanted.length) throw new Error(`${action} needs ids`)
   if (!ACTIONS.includes(action) || action === 'add') throw new Error(`unknown action ${action}`)
@@ -131,6 +145,7 @@ function updateTasks(board, ids, action, note = '', owner = 'agent') {
         continue
     }
     task.updatedAt = at
+    touchSession(task, sessionId)
     if (text) {
       task.log.push({ at, status: task.status, note: text })
       if (task.log.length > LIMITS.log) task.log.splice(0, task.log.length - LIMITS.log)
@@ -204,6 +219,9 @@ export function apply(ctx, config = {}) {
     if (!cwd) throw new Error('session todo needs a session with a working directory')
     return resolve(cwd)
   }
+
+  /** The session that made this call, recorded on every task it touches. */
+  const sessionOf = exec => exec.agent?.session?.header?.id ?? ''
 
   ctx.tools.register(defineTool({
     name: 'session_todo_board',
@@ -306,10 +324,12 @@ export function apply(ctx, config = {}) {
       const cwd = cwdOf(exec)
       return mutate(cwd, board => {
         if (args.action === 'add') {
-          const added = addTasks(board, args.tasks)
+          const added = addTasks(board, args.tasks, 'agent', sessionOf(exec))
           return render(board, `Added ${added.join(', ')}.`)
         }
-        const touched = updateTasks(board, args.ids, args.action, args.note, clip(args.owner, 40) || 'agent')
+        const touched = updateTasks(
+          board, args.ids, args.action, args.note, clip(args.owner, 40) || 'agent', sessionOf(exec),
+        )
         return render(board, `${args.action}: ${touched.join(', ')}.`)
       })
     },
@@ -320,12 +340,13 @@ export function apply(ctx, config = {}) {
     }),
   }))
 
-  /** Host-side read used by both the strip and any HTTP reader; one shape, bounded PRD. */
-  async function boardView(cwd) {
+  /** Host-side read used by the board and any HTTP reader; one shape, bounded PRD. */
+  async function boardView(cwd, sessionId = '') {
     const board = await readBoard(resolve(cwd))
     const body = board.prd?.body ?? ''
     return {
       cwd: board.cwd,
+      sessionId,
       updatedAt: board.updatedAt,
       counts: countOf(board),
       prd: board.prd
@@ -337,6 +358,7 @@ export function apply(ctx, config = {}) {
         status: task.status,
         owner: task.owner,
         note: task.note,
+        sessions: task.sessions ?? [],
         log: task.log.slice(-8),
       })),
     }
@@ -361,7 +383,7 @@ export function apply(ctx, config = {}) {
           const sessionId = url.searchParams.get('sessionId') ?? ''
           const cwd = ctx.get('sessions')?.get(sessionId)?.header?.cwd
           if (!cwd) return reply({ error: 'unknown-session' }, 404)
-          if (req.method === 'GET') return reply(await boardView(cwd))
+          if (req.method === 'GET') return reply(await boardView(cwd, sessionId))
           if (req.method !== 'POST') return reply({ error: 'method-not-allowed' }, 405)
           // Same-origin only: a random page in the user's browser must not be able to POST here
           // and rewrite a board (the response carries no CORS headers either).
@@ -387,10 +409,10 @@ export function apply(ctx, config = {}) {
             const board = await mutate(cwd, current => {
               switch (payload?.op) {
                 case 'task-add':
-                  addTasks(current, payload.tasks, 'you')
+                  addTasks(current, payload.tasks, 'you', sessionId)
                   break
                 case 'task-action':
-                  updateTasks(current, payload.ids, payload.action, payload.note, 'you')
+                  updateTasks(current, payload.ids, payload.action, payload.note, 'you', sessionId)
                   break
                 case 'prd':
                   setPrd(current, payload)
@@ -400,7 +422,7 @@ export function apply(ctx, config = {}) {
               }
               return current
             })
-            return reply(await boardView(board.cwd))
+            return reply(await boardView(board.cwd, sessionId))
           } catch (error) {
             return reply({ error: String(error?.message ?? error) }, 400)
           }

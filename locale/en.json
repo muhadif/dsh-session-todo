@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "Session todo",
-    "description": "Keeps one PRD and task board per workspace: the agent writes the PRD, claims tasks, records progress notes and closes them, and a strip under the composer shows the same board.",
+    "description": "One PRD and kanban task board per workspace: the agent writes the PRD, claims tasks and records progress, every card links to the session that worked on it, and the board narrows to this session or the whole workspace.",
     "detail": "docs/DETAIL.md"
   }
 }

@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "Session todo",
-    "description": "Menyimpan satu PRD dan papan task per workspace: agent menulis PRD, mengambil task, mencatat progres lalu menyelesaikannya, dan strip di bawah composer menampilkan papan yang sama.",
+    "description": "Satu PRD dan papan task kanban per workspace: agent menulis PRD, mengambil task dan mencatat progres, setiap kartu menaut ke session yang mengerjakannya, dan papan bisa disaring ke session ini atau seluruh workspace.",
     "detail": "docs/DETAIL.md"
   }
 }

@@ -1,8 +1,8 @@
 {
   "name": "dsh-session-todo",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
-  "description": "Workspace-scoped PRD and task board for [DSH]: the agent writes the PRD, claims tasks, traces progress and closes them, and a strip under the composer shows the same board.",
+  "description": "Workspace-scoped PRD and kanban task board for [DSH]: the agent writes the PRD, claims tasks and records progress, every card links to the session that worked on it, and the board narrows to this session or the whole workspace.",
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
@@ -26,7 +26,9 @@
     "client": {
       "platform": "web",
       "immediately": true,
-      "inject": ["@deepseek-ai/dsh-client-ui-conversation"]
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ]
     }
   },
   "peerDependencies": {
@@ -37,9 +39,11 @@
     "dsh",
     "dsh-plugin",
     "todo",
+    "kanban",
     "task-board",
     "prd",
-    "planning"
+    "planning",
+    "session"
   ],
   "repository": {
     "type": "git",
