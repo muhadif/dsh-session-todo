@@ -44,6 +44,8 @@ window.__ModuleLoader__.load({
         scopeHint: 'Which tasks to show',
         goSession: 'Open the session that worked on this',
         noSession: 'No session recorded',
+        close: 'Close',
+        closeHint: 'Back to the conversation (Esc)',
         colTodo: 'Todo',
         colDoing: 'Doing',
         colBlocked: 'Blocked',
@@ -77,6 +79,10 @@ window.__ModuleLoader__.load({
         scopeHint: 'Task mana yang ditampilkan',
         goSession: 'Buka session yang mengerjakan task ini',
         noSession: 'Belum ada session tercatat',
+        close: 'Close',
+        closeHint: 'Back to the conversation (Esc)',
+        close: 'Tutup',
+        closeHint: 'Kembali ke percakapan (Esc)',
         colTodo: 'Todo',
         colDoing: 'Dikerjakan',
         colBlocked: 'Terblokir',
@@ -114,6 +120,8 @@ window.__ModuleLoader__.load({
 .st-sub{font-size:12px;color:${T.muted}}
 .st-progress{flex:1 1 120px;min-width:80px;height:4px;border-radius:2px;background:${T.line};overflow:hidden}
 .st-progress>span{display:block;height:100%;background:${T.done}}
+.st-close{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;padding:0;border:1px solid ${T.line};border-radius:8px;background:transparent;color:${T.muted};font:inherit;font-size:15px;line-height:1;cursor:pointer}
+.st-close:hover{color:${T.strong};border-color:${T.muted}}
 .st-seg{display:inline-flex;border:1px solid ${T.line};border-radius:8px;overflow:hidden}
 .st-seg>button{padding:4px 10px;border:0;background:transparent;color:${T.muted};font:inherit;font-size:12px;cursor:pointer}
 .st-seg>button[aria-pressed="true"]{background:${T.layer2};color:${T.strong}}
@@ -332,7 +340,7 @@ window.__ModuleLoader__.load({
     }
 
     /** Full board: four columns, a workspace/session scope toggle, PRD editor and add field. */
-    function BoardPage({ t, useSessions, openSession }) {
+    function BoardPage({ t, useSessions, openSession, onClose }) {
       const tr = key => String(t?.(key) ?? DICT.en[key] ?? key)
       // The main-view reference marks the session the user is looking at; the panel itself is
       // root-scoped and has no session prop, so read it from the catalog the same way ui-session does.
@@ -352,8 +360,25 @@ window.__ModuleLoader__.load({
       const [prdDraft, setPrdDraft] = useState({ title: '', body: '' })
       const [openLog, setOpenLog] = useState('')
 
+      // Escape leaves the panel the same way the close button does, unless a field is being edited.
+      useEffect(() => {
+        if (!onClose) return undefined
+        const onKey = event => {
+          if (event.key !== 'Escape' || event.defaultPrevented) return
+          const tag = event.target?.tagName
+          if (tag === 'INPUT' || tag === 'TEXTAREA') return
+          onClose()
+        }
+        window.addEventListener('keydown', onKey)
+        return () => window.removeEventListener('keydown', onKey)
+      }, [onClose])
+
+      const closeButton = onClose
+        ? h('button', { type: 'button', className: 'st-close', onClick: onClose, title: tr('closeHint'), 'aria-label': tr('close') }, '×')
+        : null
+
       if (!board) {
-        return h('div', { className: 'st-page' }, h('style', null, CSS), h('div', { className: 'st-head' }, h('h2', { className: 'st-title' }, tr('panel'))))
+        return h('div', { className: 'st-page' }, h('style', null, CSS), h('div', { className: 'st-head' }, h('h2', { className: 'st-title' }, tr('panel')), closeButton))
       }
 
       const tasks = board.tasks ?? []
@@ -400,6 +425,7 @@ window.__ModuleLoader__.load({
             setPrdDraft({ title: board.prd?.title ?? '', body: board.prd?.body ?? '' })
             setEditingPrd(true)
           }),
+          closeButton,
         ),
         editingPrd
           ? h(
@@ -550,7 +576,10 @@ window.__ModuleLoader__.load({
               name: 'main',
               key: PANEL_ID,
               locale: NS,
-              inject: () => ({ openSession: id => ctx.get?.('uiWorkspace')?.openSession?.(id) }),
+              inject: () => ({
+                openSession: id => ctx.get?.('uiWorkspace')?.openSession?.(id),
+                onClose: () => ctx.get?.('layout')?.selectPanel?.(null),
+              }),
             },
             BoardPage,
           ),

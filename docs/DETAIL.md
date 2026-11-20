@@ -4,7 +4,9 @@ One PRD and task board per workspace, shared by every session working in that di
 
 ## The board
 
-Four columns — Todo, Doing, Blocked, Done — with a card per task. The header carries the counts, a progress bar, the scope toggle, the PRD editor, and the add field. A card shows its title, its latest progress note and its owner, offers the actions for its column (Start, Done, Block, Reopen, Delete), and toggles the per-task progress log.
+Four columns — Todo, Doing, Blocked, Done — with a card per task. The header carries the counts, a progress bar, the scope toggle, the PRD editor, the add field, and a close button.
+
+The close button returns the main area to the conversation, the same call the shell's own panels make (`layout.selectPanel(null)`); Escape does the same unless a text field has focus. Closing the board does not stop the agent or change any task — the composer strip keeps showing the counts, and the sidebar icon reopens the board. A card shows its title, its latest progress note and its owner, offers the actions for its column (Start, Done, Block, Reopen, Delete), and toggles the per-task progress log.
 
 ## Sessions on a task
 

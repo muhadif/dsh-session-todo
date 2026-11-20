@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-todo",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "type": "module",
   "description": "Workspace-scoped PRD and kanban task board for [DSH]: the agent writes the PRD, claims tasks and records progress, every card links to the session that worked on it, and the board narrows to this session or the whole workspace.",
   "exports": {

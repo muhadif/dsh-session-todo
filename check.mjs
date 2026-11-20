@@ -119,7 +119,12 @@ try {
   // against a stub React and fail loudly on a bad tree.
   await copyFile(new URL('./client.js', import.meta.url), join(dir, 'client.js'))
   let factory
-  globalThis.window = { __ModuleLoader__: { load: entry => { factory = entry.factory } } }
+  const keyHandlers = []
+  globalThis.window = {
+    __ModuleLoader__: { load: entry => { factory = entry.factory } },
+    addEventListener: (type, handler) => { if (type === 'keydown') keyHandlers.push(handler) },
+    removeEventListener: () => {},
+  }
   await import(join(dir, 'client.js'))
   assert.ok(factory, 'client module registers a factory')
 
@@ -144,7 +149,12 @@ try {
         index += 1
         return [value === undefined ? initial : value, () => {}]
       },
-      useEffect: () => {},
+      // Run the effect body and its cleanup at once: subscriptions stay observable through the
+      // stub's addEventListener, and the poll interval is cleared so the process can exit.
+      useEffect: effect => {
+        const cleanup = effect()
+        if (typeof cleanup === 'function') cleanup()
+      },
     }
     const client = factory(() => React)
     const registrations = new Map()
@@ -188,10 +198,14 @@ try {
   assert.doesNotMatch(treeText(expanded), /Done one/, 'finished task stays out of the strip')
 
   // The board panel: four columns, the workspace scope by default, and a link to each task's session.
+  let closed = 0
   const kanban = render('main:session-todo', [boardState, '', false, 'workspace'], {
     useSessions,
     openSession: id => (opened = id),
+    onClose: () => (closed += 1),
   })
+  // Capture the handler this render installed; later renders install their own.
+  const kanbanKeyHandler = keyHandlers.at(-1)
   const kanbanText = treeText(kanban)
   for (const column of ['Todo', 'Doing', 'Blocked', 'Done']) {
     assert.ok(kanbanText.includes(column), `the board renders the ${column} column`)
@@ -202,7 +216,7 @@ try {
   assert.match(kanbanText, /Workspace/, 'the scope toggle is offered')
   assert.match(kanbanText, /This session/, 'the session scope is offered')
 
-  const scoped = render('main:session-todo', [boardState, '', false, 'session'], { useSessions, openSession: () => {} })
+  const scoped = render('main:session-todo', [boardState, '', false, 'session'], { useSessions, openSession: () => {}, onClose: () => {} })
   assert.match(treeText(scoped), /Open one/, 'the current session keeps the task it touched')
   assert.doesNotMatch(treeText(scoped), /Done one/, 'the current session hides a task it never touched')
 
@@ -228,7 +242,31 @@ try {
   openEarlier()
   assert.equal(opened, 's2', 'the button opens the session recorded on that card')
 
-  console.log('check ok: PRD, tasks, claims, sessions per task, route read/write + origin guard, persistence, strip + kanban render')
+  // The board can be closed back to the conversation: a button, and Escape when no field is focused.
+  const findCloseButton = node => {
+    if (node == null || typeof node !== 'object') return null
+    if (Array.isArray(node)) {
+      for (const child of node) {
+        const hit = findCloseButton(child)
+        if (hit) return hit
+      }
+      return null
+    }
+    if (typeof node.type === 'function') return findCloseButton(node.type({ ...node.props, children: node.children }))
+    if (node.props?.className === 'st-close' && node.props?.onClick) return node.props.onClick
+    return (node.children ?? []).map(findCloseButton).find(Boolean) ?? null
+  }
+  const closeBoard = findCloseButton(kanban)
+  assert.ok(closeBoard, 'the board offers a close button')
+  closeBoard()
+  assert.equal(closed, 1, 'the close button returns to the conversation')
+  assert.ok(kanbanKeyHandler, 'the board listens for Escape')
+  kanbanKeyHandler({ key: 'Escape', target: { tagName: 'DIV' }, defaultPrevented: false })
+  assert.equal(closed, 2, 'Escape closes the board')
+  kanbanKeyHandler({ key: 'Escape', target: { tagName: 'TEXTAREA' }, defaultPrevented: false })
+  assert.equal(closed, 2, 'Escape inside a field does not close the board')
+
+  console.log('check ok: PRD, tasks, claims, sessions per task, route read/write + origin guard, persistence, strip + kanban render, close + Escape')
 } finally {
   await rm(dir, { recursive: true, force: true })
 }

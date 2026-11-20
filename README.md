@@ -20,7 +20,7 @@ Refresh the page once after installing.
 
 Four columns — **Todo**, **Doing**, **Blocked**, **Done** — with a card per task. A card carries its title, its latest progress note, the owner, and the actions that apply to its column: Start, Done, Block, Reopen, Delete, plus a Log toggle for the full progress history.
 
-The header holds the counts, a progress bar, the PRD editor, and the add field.
+The header holds the counts, a progress bar, the scope toggle, the PRD editor, the add field, and a close button. Close (or Escape) returns to the conversation without touching the board; the sidebar icon reopens it.
 
 ### Go to the session behind a task
 
