@@ -32,7 +32,8 @@
     }
   },
   "peerDependencies": {
-    "@deepseek-ai/dsh-tools": "^0.2.2-rc.3"
+    "@deepseek-ai/dsh-tools": "^0.2.2-rc.3",
+    "@deepseek-ai/dsh-client-ui-primitives": ">=0.2.2-rc.1"
   },
   "license": "MIT",
   "keywords": [
@@ -53,5 +54,13 @@
   "homepage": "https://github.com/muhadif/dsh-session-todo#readme",
   "bugs": {
     "url": "https://github.com/muhadif/dsh-session-todo/issues"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-tools": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-primitives": {
+      "optional": true
+    }
   }
 }
