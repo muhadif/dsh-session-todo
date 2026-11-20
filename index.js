@@ -39,6 +39,7 @@ const PREVIEW = 200
 const PROMPT_SECTION = `## Session todo board
 Each workspace has PRDs and a task board shared by every session working in that directory, through \`session_todo_board\` (read), \`session_todo_prd\` (write a PRD) and \`session_todo_task\` (add, claim, progress, complete, block, reopen, remove, comment, edit, link).
 - When the user brings requirements or a spec, record the PRD before starting work; extend it when only part changed. A board holds several PRDs, each owned by the session that wrote it.
+- For any request that takes more than a couple of steps, do that without being asked: write the PRD, add the tasks, then claim the first one. A single small edit needs no board.
 - Break the work into concrete tasks and pass the PRD's id as \`prdId\` so each task points at its spec.
 - \`claim\` a task before working on it, and \`progress\` or \`comment\` with what you learned as you go.
 - \`complete\` each task as soon as it is done; read the board when you resume, after compaction, or before reporting status.

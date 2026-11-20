@@ -42,6 +42,7 @@ window.__ModuleLoader__.load({
         prdTasks: '{count} task(s)',
         prdOwner: 'by {session}',
         empty: 'No tasks yet.',
+        firstRun: 'This board is empty. The agent fills it on its own: it writes a PRD when you bring requirements, then claims a task before working. Ask for something multi-step, or add a task below.',
         emptySession: 'Nothing claimed or added by this session yet.',
         done: '{done} of {total} done',
         addPlaceholder: 'Add a task',
@@ -105,6 +106,7 @@ window.__ModuleLoader__.load({
         prdTasks: '{count} task',
         prdOwner: 'oleh {session}',
         empty: 'Belum ada task.',
+        firstRun: 'Papan ini masih kosong. Agent mengisinya sendiri: menulis PRD saat ada requirement, lalu mengambil task sebelum bekerja. Minta sesuatu yang perlu beberapa langkah, atau tambah task di bawah.',
         emptySession: 'Belum ada task dari session ini.',
         done: '{done} dari {total} selesai',
         addPlaceholder: 'Tambah task',
@@ -223,6 +225,7 @@ window.__ModuleLoader__.load({
 .st-session{display:inline-flex;align-items:center;gap:4px;max-width:100%;padding:1px 7px;border:1px dashed ${T.line};border-radius:6px;background:transparent;color:${T.muted};font:inherit;font-size:11px;cursor:pointer;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .st-session:hover{color:${T.strong};border-style:solid}
 .st-session--current{border-style:solid;color:${T.doing}}
+.st-firstrun{margin:0 clamp(16px,3vw,32px) 14px;padding:12px 14px;border:1px dashed ${T.line};border-radius:10px;background:${T.layer};color:${T.muted};font-size:12px;line-height:1.6}
 .st-add{display:flex;gap:6px;padding:0 clamp(16px,3vw,32px) 16px}
 .st-input{flex:1;min-width:0;padding:5px 9px;border:1px solid ${T.line};border-radius:8px;background:${T.layer2};color:${T.strong};font:inherit;font-size:12px}
 .st-textarea{width:100%;padding:8px 10px;border:1px solid ${T.line};border-radius:8px;background:${T.layer2};color:${T.strong};font:inherit;font-size:12px;line-height:1.5;resize:vertical}
@@ -970,6 +973,9 @@ window.__ModuleLoader__.load({
                 : h('span', { className: 'st-sub' }, tr('prdEmpty')),
             )
           : null,
+        total === 0
+          ? h('div', { className: 'st-firstrun' }, tr('firstRun'))
+          : null,
         h(
           'div',
           { className: 'st-body' },
@@ -1000,7 +1006,7 @@ window.__ModuleLoader__.load({
                         setOpenTask(id)
                       },
                     }))
-                  : h('span', { className: 'st-sub', style: { fontSize: 11 } }, bySession ? tr('emptySession') : tr('empty')),
+                  : h('span', { className: 'st-sub', style: { fontSize: 11 } }, bySession ? tr('emptySession') : '—'),
               ),
             )
           }),

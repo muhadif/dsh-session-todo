@@ -8,13 +8,15 @@ No database, no setup: the board lives in a JSON file under `$DSH_HOME`.
 
 ## Install
 
-Install the bundle through Plugin Manager (Settings → Plugins → add from registry) or with the Plugin Manager tool's `install_bundle` and the package name:
+One command, or one click:
 
-```
-dsh-session-todo
+```sh
+dsh plugin add dsh-session-todo
 ```
 
-Refresh the page once after installing.
+Or install it from Settings → Plugins in the Web UI (or one-click from dshmarket). No configuration, no build step, no API key, no database — the bundle patch enables itself, and the sidebar icon plus the composer strip appear as soon as it is enabled. If they do not, reload the page once.
+
+The agent starts using it immediately: the plugin adds a short section to the system prompt of every session in the profile, so it records the PRD and the task list for multi-step work without being asked.
 
 ## PRDs are entities
 

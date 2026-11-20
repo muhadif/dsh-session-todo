@@ -16,6 +16,10 @@ A task carries a title, status, owner, priority (`low`/`medium`/`high`/`urgent`)
 
 The card shows the title, the PRD chip, priority, labels, comment count and the last session. Clicking the card opens the detail panel: editable title, status buttons, owner, priority, labels, PRD dropdown, the session list (each entry opens that conversation), the description rendered as Markdown, the comment thread, and the full history of status changes and progress notes.
 
+## First run
+
+An empty board explains itself: instead of four columns each saying "No tasks yet", it shows one line describing what happens next — the agent writes a PRD when requirements arrive, claims a task before working, and the human can add one directly. The prompt section tells the agent to do that unprompted for any request that takes more than a couple of steps, so a fresh install fills itself on the first real task rather than waiting to be told.
+
 ## Sessions on a task
 
 Each task records up to five session ids, most recent first, written by both the agent tools and the board route. `sessions[0]` is the session a card links to; membership answers the scope toggle — **Workspace** shows every task on the board, **This session** only those whose `sessions` include the session currently in the main view.

@@ -324,6 +324,15 @@ try {
   chip.onClick({ stopPropagation: () => {}, target: {} })
 
   // Opening a task renders its detail sheet; opening a PRD renders the PRD sheet.
+  // A board with nothing on it explains itself instead of printing "No tasks yet" four times.
+  const emptyState = {
+    cwd, sessionId: 's1', counts: { todo: 0, doing: 0, blocked: 0, done: 0 }, prds: [], tasks: [],
+  }
+  const emptyBoardView = render('main:session-todo', [emptyState, '', false, 'workspace'], { useSessions, openSession: () => {}, onClose: () => {} })
+  const emptyText = treeText(emptyBoardView)
+  assert.match(emptyText, /The agent fills it on its own/, 'an empty board explains how it gets filled')
+  assert.doesNotMatch(emptyText, /No tasks yet/, 'the first-run hint replaces four repeated empty labels')
+
   const taskSheet = render('main:session-todo', [boardState, '', false, 'workspace', '', 'T2'], { useSessions, openSession: () => {}, onClose: () => {} })
   assert.match(treeText(taskSheet), /Task T2/, 'a task opens a detail sheet')
   const prdSheet = render('main:session-todo', [boardState, '', false, 'workspace', '', '', 'P1'], { useSessions, openSession: () => {}, onClose: () => {} })
