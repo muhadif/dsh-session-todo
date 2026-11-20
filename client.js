@@ -43,7 +43,8 @@ window.__ModuleLoader__.load({
         scopeSession: 'This session',
         scopeHint: 'Which tasks to show',
         goSession: 'Open the session that worked on this',
-        noSession: 'No session recorded',
+        linkSession: 'Link this session',
+        linkHint: 'No session recorded yet — click to record this session on the task',
         close: 'Close',
         closeHint: 'Back to the conversation (Esc)',
         colTodo: 'Todo',
@@ -78,7 +79,8 @@ window.__ModuleLoader__.load({
         scopeSession: 'Session ini',
         scopeHint: 'Task mana yang ditampilkan',
         goSession: 'Buka session yang mengerjakan task ini',
-        noSession: 'Belum ada session tercatat',
+        linkSession: 'Tautkan session ini',
+        linkHint: 'Belum ada session tercatat — klik untuk mencatat session ini di task',
         close: 'Close',
         closeHint: 'Back to the conversation (Esc)',
         close: 'Tutup',
@@ -320,7 +322,19 @@ window.__ModuleLoader__.load({
                 },
                 `↗ ${latestTitle}`,
               )
-            : h('span', { className: 'st-session', style: { cursor: 'default', borderStyle: 'dotted' } }, tr('noSession')),
+            : h(
+                'button',
+                {
+                  type: 'button',
+                  className: 'st-session',
+                  // Older boards predate session tracking: one click records this session, and
+                  // `progress` without a note changes nothing else on the task.
+                  onClick: () => onAction({ op: 'task-action', action: 'progress', ids: [task.id] }),
+                  disabled: busy || !currentSessionId,
+                  title: tr('linkHint'),
+                },
+                `+ ${tr('linkSession')}`,
+              ),
           ...actions.map(([label, action]) => button(
             label,
             () => onAction({ op: 'task-action', action, ids: [task.id] }),

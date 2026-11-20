@@ -136,6 +136,7 @@ try {
     tasks: [
       { id: 'T1', title: 'Done one', status: 'done', owner: 'agent', note: '', sessions: ['s2'], log: [{ at: new Date().toISOString(), status: 'done', note: '' }] },
       { id: 'T2', title: 'Open one', status: 'todo', owner: '', note: '', sessions: ['s1'], log: [] },
+      { id: 'T3', title: 'Legacy one', status: 'blocked', owner: '', note: '', log: [] },
     ],
   }
 
@@ -190,7 +191,7 @@ try {
   })
 
   const collapsed = render('conversation.composer.dock:session-todo', [boardState, '', false, false], { sessionId: 's1' })
-  assert.match(treeText(collapsed), /1 of 2 done/, 'strip keeps the finished count')
+  assert.match(treeText(collapsed), /1 of 3 done/, 'strip keeps the finished count')
   assert.doesNotMatch(treeText(collapsed), /Open one/, 'collapsed strip lists nothing')
 
   const expanded = render('conversation.composer.dock:session-todo', [boardState, '', false, true], { sessionId: 's1' })
@@ -213,6 +214,7 @@ try {
   assert.match(kanbanText, /Open one/, 'workspace scope shows every task')
   assert.match(kanbanText, /Done one/, 'done tasks keep their own column')
   assert.match(kanbanText, /Earlier session/, 'a card names the session that worked on it')
+  assert.match(kanbanText, /Link this session/, 'a task with no recorded session offers to adopt the current one')
   assert.match(kanbanText, /Workspace/, 'the scope toggle is offered')
   assert.match(kanbanText, /This session/, 'the session scope is offered')
 

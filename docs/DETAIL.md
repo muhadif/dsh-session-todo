@@ -14,6 +14,8 @@ Each task records up to five session ids, most recent first, written by both the
 
 The panel is root-scoped and has no session prop, so it reads the current session the way `ui-session` does: the catalog row whose `retainedBy.mainView` count is positive. Titles come from the same catalog, falling back to the id prefix.
 
+Boards written before 1.1.0 have no `sessions` field at all, so their cards show **Link this session** instead of a session name: one click records the session currently open on that task (`progress` with no note, which changes nothing else). Any later action on the task records the session too, so the field fills itself in as the board is used.
+
 ## Tools the agent gets
 
 | Tool | What it does |
