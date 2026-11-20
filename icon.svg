@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Session todo">
+  <rect x="4" y="4" width="56" height="56" rx="14" fill="#1f6feb"/>
+  <rect x="14" y="16" width="36" height="32" rx="6" fill="#f6f8fa"/>
+  <path d="M20 24.5l3 3 5-5" fill="none" stroke="#1f883d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M20 34.5l3 3 5-5" fill="none" stroke="#1f883d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M20 44.5l3 3 5-5" fill="none" stroke="#8c959f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M33 25h12M33 35h12M33 45h8" stroke="#57606a" stroke-width="3" stroke-linecap="round"/>
+</svg>

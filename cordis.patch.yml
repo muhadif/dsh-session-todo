@@ -1,0 +1,4 @@
+- insert:
+    - id: session-todo
+      name: dsh-session-todo
+      config: {}

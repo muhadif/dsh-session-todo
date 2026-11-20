@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "Session todo",
+    "description": "Menyimpan satu PRD dan papan task per workspace: agent menulis PRD, mengambil task, mencatat progres lalu menyelesaikannya, dan strip di bawah composer menampilkan papan yang sama.",
+    "detail": "docs/DETAIL.md"
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "name": "dsh-session-todo",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Workspace-scoped PRD and task board for [DSH]: the agent writes the PRD, claims tasks, traces progress and closes them, and a strip under the composer shows the same board.",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "docs/DETAIL.md",
+    "icon.svg",
+    "README.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": ["@deepseek-ai/dsh-client-ui-conversation"]
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-tools": "^0.2.2-rc.3"
+  },
+  "license": "MIT",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "todo",
+    "task-board",
+    "prd",
+    "planning"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/muhadif/dsh-session-todo.git"
+  },
+  "homepage": "https://github.com/muhadif/dsh-session-todo#readme",
+  "bugs": {
+    "url": "https://github.com/muhadif/dsh-session-todo/issues"
+  }
+}
