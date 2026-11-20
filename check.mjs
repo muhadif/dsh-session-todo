@@ -190,13 +190,21 @@ try {
     },
   })
 
+  // The strip counts only this session's tasks: T2 is s1's, T1 belongs to s2, T3 has no session.
   const collapsed = render('conversation.composer.dock:session-todo', [boardState, '', false, false], { sessionId: 's1' })
-  assert.match(treeText(collapsed), /1 of 3 done/, 'strip keeps the finished count')
+  assert.match(treeText(collapsed), /0 of 1 done/, 'strip counts this session only')
   assert.doesNotMatch(treeText(collapsed), /Open one/, 'collapsed strip lists nothing')
 
   const expanded = render('conversation.composer.dock:session-todo', [boardState, '', false, true], { sessionId: 's1' })
-  assert.match(treeText(expanded), /Open one/, 'open strip lists the pending task')
-  assert.doesNotMatch(treeText(expanded), /Done one/, 'finished task stays out of the strip')
+  assert.match(treeText(expanded), /Open one/, 'open strip lists the pending task of this session')
+  assert.doesNotMatch(treeText(expanded), /Done one/, 'a task from another session stays out of the strip')
+  assert.doesNotMatch(treeText(expanded), /Legacy one/, 'a task with no session stays out of the strip')
+  assert.match(treeText(expanded), /2 more in the workspace/, 'the strip says how much it leaves to the board')
+
+  // A session that has done nothing of its own still sees its own empty state.
+  const idle = render('conversation.composer.dock:session-todo', [boardState, '', false, true], { sessionId: 's9' })
+  assert.match(treeText(idle), /Nothing claimed or added by this session yet/, 'an idle session says so')
+  assert.match(treeText(idle), /3 more in the workspace/, 'and still points at the board')
 
   // The board panel: four columns, the workspace scope by default, and a link to each task's session.
   let closed = 0

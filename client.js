@@ -39,6 +39,7 @@ window.__ModuleLoader__.load({
         prdPlaceholder: 'PRD in Markdown…',
         prdTitlePlaceholder: 'PRD title',
         failed: 'Could not save',
+        othersInWorkspace: '{count} more in the workspace',
         scopeWorkspace: 'Workspace',
         scopeSession: 'This session',
         scopeHint: 'Which tasks to show',
@@ -75,14 +76,13 @@ window.__ModuleLoader__.load({
         prdPlaceholder: 'PRD dalam Markdown…',
         prdTitlePlaceholder: 'Judul PRD',
         failed: 'Gagal menyimpan',
+        othersInWorkspace: '{count} task lain di workspace',
         scopeWorkspace: 'Workspace',
         scopeSession: 'Session ini',
         scopeHint: 'Task mana yang ditampilkan',
         goSession: 'Buka session yang mengerjakan task ini',
         linkSession: 'Tautkan session ini',
         linkHint: 'Belum ada session tercatat — klik untuk mencatat session ini di task',
-        close: 'Close',
-        closeHint: 'Back to the conversation (Esc)',
         close: 'Tutup',
         closeHint: 'Kembali ke percakapan (Esc)',
         colTodo: 'Todo',
@@ -225,7 +225,7 @@ window.__ModuleLoader__.load({
       return { board, error, busy, run }
     }
 
-    /** Composer strip: counts, progress, and a way into the board. */
+    /** Composer strip: this session's tasks only, plus a way into the whole board. */
     function Strip({ sessionId, t, openBoard }) {
       const tr = key => String(t?.(key) ?? DICT.en[key] ?? key)
       const { board, error } = useBoard(sessionId)
@@ -233,11 +233,14 @@ window.__ModuleLoader__.load({
 
       if (!board) return null
       const tasks = board.tasks ?? []
-      const counts = board.counts ?? {}
-      const total = tasks.length
-      const done = counts.done ?? 0
+      // The strip sits inside one conversation, so it counts that session's work only; the board
+      // behind it still carries the whole workspace, and says how much it is leaving out.
+      const mine = sessionId ? tasks.filter(task => (task.sessions ?? []).includes(sessionId)) : tasks
+      const others = tasks.length - mine.length
+      const total = mine.length
+      const done = mine.filter(task => task.status === 'done').length
       const label = tr('done').replace('{done}', String(done)).replace('{total}', String(total))
-      const pending = tasks.filter(task => task.status !== 'done')
+      const pending = mine.filter(task => task.status !== 'done')
 
       return h(
         'div',
@@ -276,7 +279,19 @@ window.__ModuleLoader__.load({
                     h('span', { style: { flex: 1, minWidth: 0, overflowWrap: 'anywhere' } }, task.title),
                     task.owner ? h('span', { style: { color: T.muted } }, `@${task.owner}`) : null,
                   ))
-                : h('span', { style: { color: T.muted } }, tr('empty')),
+                : h('span', { style: { color: T.muted } }, sessionId ? tr('emptySession') : tr('empty')),
+              others
+                ? h(
+                    'button',
+                    {
+                      type: 'button',
+                      onClick: openBoard,
+                      disabled: !openBoard,
+                      style: { justifySelf: 'start', padding: 0, border: 0, background: 'transparent', color: T.muted, font: 'inherit', fontSize: 11, cursor: openBoard ? 'pointer' : 'default' },
+                    },
+                    `${tr('othersInWorkspace').replace('{count}', String(others))} →`,
+                  )
+                : null,
               error ? h('span', { style: { color: T.error, fontSize: 11 } }, `${tr('failed')}: ${error}`) : null,
             )
           : null,

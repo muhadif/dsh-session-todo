@@ -26,7 +26,7 @@ Boards written before 1.1.0 have no `sessions` field at all, so their cards show
 
 `add` returns the new ids, `claim` marks the task `doing` and records the owner (`agent` unless set), `progress` appends a note to the task log and can change status later, and `complete` closes it.
 
-The composer strip shows the counts, a progress bar, a Board button that opens the kanban, and a collapsed list of everything not yet done. The list is capped at 28vh and scrolls inside the strip, so a long board never pushes the composer or the collapse control off screen.
+The composer strip is scoped to the conversation it is docked in: its counts, progress bar and collapsed list cover only the tasks whose `sessions` include that session, and a footer line names how many tasks the rest of the workspace holds, linking to the board. A session that has touched nothing shows its own empty state rather than the workspace's. The list is capped at 28vh and scrolls inside the strip, so a long board never pushes the composer or the collapse control off screen.
 
 ## How a session finds it
 

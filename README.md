@@ -51,7 +51,7 @@ The plugin also adds a short "Session todo board" section to the system prompt, 
 
 ## The composer strip
 
-Counts, a progress bar, a **Board** button that opens the kanban, and a collapsed list of everything not yet done. The strip never grows: the list scrolls inside it, so a long board cannot push the composer off screen.
+Scoped to the conversation it sits in: counts and a progress bar for **this session's** tasks only, a **Board** button that opens the kanban, and a collapsed list of that session's unfinished work. The strip never grows — the list scrolls inside it, so a long board cannot push the composer off screen — and when the workspace holds tasks from other sessions it says how many, with a link to the full board.
 
 ## How the board is keyed
 
